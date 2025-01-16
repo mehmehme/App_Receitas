@@ -1,53 +1,72 @@
+import 'package:boas_receitas/p%C3%A1ginas/api_receitas.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:boas_receitas/páginas/favoritos.dart';
 
 class InicioScreen extends StatefulWidget {
+  const InicioScreen({super.key});
+
   @override
   _InicioScreenState createState() => _InicioScreenState();
 }
 
 class _InicioScreenState extends State<InicioScreen> {
   int _selectedIndex = 0; // Controla a tela ativa
-  List<String> ingredientes = [];
-  List<dynamic> receitas = [];
+  List<String> ingredientes = []; // Ingredientes inseridos pelo usuário
+  List<dynamic> receitas = []; // Receitas filtradas pela API
   TextEditingController ingredienteController = TextEditingController();
+  List<dynamic> favoritos = []; // Favoritos do usuário
 
-  // Função para pesquisar receitas com base nos ingredientes
-  Future<void> pesquisarReceitas() async {
-    if (ingredientes.isEmpty)
-      return; // Não faz a pesquisa se não houver ingredientes
-
-    final ingredientesQuery = ingredientes.join(',');
-    final response = await http.get(Uri.parse(
-        'https://api-receitas-pi.vercel.app/recipes?ingredients=$ingredientesQuery'));
-
-    if (response.statusCode == 200) {
-      setState(() {
-        receitas = json.decode(response.body);
-      });
-    } else {
-      throw Exception('Falha ao carregar receitas');
-    }
+  // Função para adicionar uma receita aos favoritos
+  void adicionarFavorito(dynamic receita) {
+    setState(() {
+      favoritos.add(receita);
+    });
   }
 
-  // Função para adicionar um ingrediente à lista
+  // Função para remover uma receita dos favoritos
+  void removerFavorito(dynamic receita) {
+    setState(() {
+      favoritos.remove(receita);
+    });
+  }
+
+  // Função para mostrar um aviso
+  // ignore: unused_element
+  void _mostrarAviso(String mensagem) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Aviso"),
+          content: Text(mensagem),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Fecha o diálogo
+              },
+              child: Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Função para adicionar ingrediente à lista
   void adicionarIngrediente() {
     if (ingredienteController.text.isNotEmpty) {
       setState(() {
         ingredientes.add(ingredienteController.text);
-        ingredienteController.clear(); // Limpa o campo de texto após adicionar
+        ingredienteController.clear();
       });
-      pesquisarReceitas(); // Atualiza a pesquisa com os ingredientes atualizados
     }
   }
 
-  // Função para remover um ingrediente da lista
+  // Função para remover ingrediente da lista
   void removerIngrediente(int index) {
     setState(() {
       ingredientes.removeAt(index);
     });
-    pesquisarReceitas(); // Atualiza a pesquisa após remover um ingrediente
   }
 
   // Função chamada ao selecionar uma aba do BottomNavigationBar
@@ -57,7 +76,39 @@ class _InicioScreenState extends State<InicioScreen> {
     });
   }
 
-  // Tela de Pesquisar
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Receitas App'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.search),
+            onPressed: _buildPesquisarScreen,
+          )
+        ],
+      ),
+      body: _selectedIndex == 0
+          ? _buildPesquisarScreen()
+          : FavoritosScreen(), // Tela de Favoritos
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onTabTapped,
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Pesquisar',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.favorite),
+            label: 'Favoritos',
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Tela de Pesquisa
   Widget _buildPesquisarScreen() {
     return Column(
       children: [
@@ -78,154 +129,23 @@ class _InicioScreenState extends State<InicioScreen> {
           onPressed: adicionarIngrediente,
           child: Text("Adicionar Ingrediente"),
         ),
-        // Lista de ingredientes com ícones e botão de remoção
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Wrap(
-            spacing: 8.0,
-            children: ingredientes.map((ingrediente) {
-              int index = ingredientes.indexOf(ingrediente);
-              return Chip(
-                label: Text(ingrediente),
-                avatar: CircleAvatar(
-                  child: Icon(Icons.remove),
-                  backgroundColor: Colors.red,
-                ),
-                onDeleted: () => removerIngrediente(index),
-              );
-            }).toList(),
-          ),
+        Wrap(
+          spacing: 8.0,
+          children: ingredientes.map((ingrediente) {
+            int index = ingredientes.indexOf(ingrediente);
+            return Chip(
+              label: Text(ingrediente),
+              onDeleted: () => removerIngrediente(index),
+            );
+          }).toList(),
         ),
-        ElevatedButton(
-          onPressed: pesquisarReceitas,
-          child: Text("Pesquisar Receitas"),
-        ),
+        // Lista de receitas com base nos ingredientes fornecidos
         Expanded(
-          child: ListView.builder(
-            itemCount: receitas.length,
-            itemBuilder: (context, index) {
-              var receita = receitas[index];
-              return Card(
-                child: Stack(
-                  children: [
-                    Image.network(
-                      receita['image'],
-                      fit: BoxFit.cover,
-                      height: 200,
-                      width: double.infinity,
-                    ),
-                    Positioned(
-                      bottom: 10,
-                      left: 10,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            receita['title'],
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            receita['type'],
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: IconButton(
-                        icon: Icon(Icons.favorite_border, color: Colors.white),
-                        onPressed: () {
-                          // Lógica para adicionar aos favoritos
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+          child: ReceitaList(
+            ingredientes: ingredientes,
           ),
         ),
       ],
-    );
-  }
-
-  // Tela de Favoritos
-  Widget _buildFavoritosScreen() {
-    return Scaffold(
-      appBar: AppBar(title: Text("Favoritos")),
-      body: Center(child: Text("Aqui estarão suas receitas favoritas")),
-    );
-  }
-
-  // Tela de Perfil
-  Widget _buildPerfilScreen() {
-    return Scaffold(
-      appBar: AppBar(title: Text("Perfil")),
-      body: Column(
-        children: [
-          Center(
-              child: Text("Nome do Usuário", style: TextStyle(fontSize: 24))),
-          Expanded(
-            child: ListView(
-              children: [
-                ListTile(
-                  title: Text("Comentário sobre a Receita X"),
-                ),
-                ListTile(
-                  title: Text("Comentário sobre a Receita Y"),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Receitas App'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.search),
-            onPressed: pesquisarReceitas,
-          )
-        ],
-      ),
-      body: _selectedIndex == 0
-          ? _buildPesquisarScreen()
-          : _selectedIndex == 1
-              ? _buildFavoritosScreen()
-              : _buildPerfilScreen(),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onTabTapped,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Pesquisar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite),
-            label: 'Favoritos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-        ],
-      ),
     );
   }
 }
